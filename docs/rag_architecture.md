@@ -63,6 +63,7 @@ with source citations and conversation memory.
 4. What temperature should water be in hydroponics? → Answered with citation
 5. How do I manage nutrient deficiency? → Answered with citation
 
+
 ## Known Issues / Limitations
 - Gemini free tier quota was exhausted — switched to Groq (free, faster)
 - HuggingFace hub sends unauthenticated warning — set HF_TOKEN in .env to fix
