@@ -22,12 +22,17 @@ def validate_data(df):
 
     # Check value ranges (adjust column names to match Livia's schema)
     range_checks = {
-        'pH': (0, 14),
-        'temperature_C': (0, 60),
-        'TDS_ppm': (0, 3000),
-        'EC_mS': (0, 10),
-        'humidity_pct': (0, 100),
-    }
+    'pH':               (4.0,  9.0),
+    'TDS':              (0,    5000),
+    'EC':               (0.0,  5.0),
+    'water_temp_C':     (10,   35),
+    'water_level_cm':   (0,    100),
+    'air_temp_C':       (10,   45),
+    'humidity_pct':     (0,    100),
+    'light_hours':      (0,    24),
+    'plant_height_cm':  (0,    300),
+    'leaf_count':       (0,    500),
+}
 
     for col, (min_val, max_val) in range_checks.items():
         if col in df.columns:
