@@ -11,12 +11,13 @@ st.set_page_config(
     layout="wide"
 )
 
-API_URL = "http://localhost:8001"  # your dashboard API
+API_URL       = "http://localhost:8001"   # dashboard API
+IMAGE_API_URL = "http://localhost:8002"   # image API
+RAG_API_URL   = "http://localhost:8000"   # RAG API
 
 st.title("🌱 Farmspherica Nano PAW — Live Dashboard")
 st.caption(f"Last refreshed: {datetime.now().strftime('%d %b %Y %H:%M:%S')}")
 
-# ── Auto-refresh button ────────────────────────────────────────────────────
 if st.button("🔄 Refresh data"):
     st.rerun()
 
@@ -45,24 +46,23 @@ try:
     latest_resp = requests.get(f"{API_URL}/data/latest", timeout=5)
     latest = latest_resp.json()
 
-    # Show sensor cards in a row
     col1, col2, col3, col4, col5 = st.columns(5)
 
     def show_card(col, label, key, unit, safe_low, safe_high):
         val = latest.get(key, "N/A")
         with col:
-            if val != "N/A":
+            if val != "N/A" and val is not None:
                 val = round(float(val), 2)
                 status = "🟢" if safe_low <= val <= safe_high else "🔴"
                 st.metric(label=f"{status} {label}", value=f"{val} {unit}")
             else:
                 st.metric(label=label, value="No data")
 
-    show_card(col1, "pH",           "pH",           "",       4.0, 9.0)
-    show_card(col2, "EC",           "EC",           "mS/cm",  0.0, 5.0)
-    show_card(col3, "Water Temp",   "water_temp_C", "°C",     10,  35)
-    show_card(col4, "Height",       "plant_height_cm", "cm",  0,   300)
-    show_card(col5, "Leaf Count",   "leaf_count",   "leaves", 0,   500)
+    show_card(col1, "pH",        "pH",              "",       4.0, 9.0)
+    show_card(col2, "EC",        "EC",              "mS/cm",  0.0, 5.0)
+    show_card(col3, "Water Temp","water_temp_C",    "°C",     10,  35)
+    show_card(col4, "Height",    "plant_height_cm", "cm",     0,   300)
+    show_card(col5, "Leaf Count","leaf_count",      "leaves", 0,   500)
 
 except Exception as e:
     st.warning(f"Could not load latest readings: {e}")
@@ -85,8 +85,10 @@ try:
             if "pH" in df.columns:
                 fig = px.line(df, x=df.index, y="pH", title="pH over time",
                               markers=True, color_discrete_sequence=["#1a6b3c"])
-                fig.add_hline(y=4.0, line_dash="dot", line_color="red",   annotation_text="Min safe")
-                fig.add_hline(y=9.0, line_dash="dot", line_color="red",   annotation_text="Max safe")
+                fig.add_hline(y=4.0, line_dash="dot", line_color="red",
+                              annotation_text="Min safe")
+                fig.add_hline(y=9.0, line_dash="dot", line_color="red",
+                              annotation_text="Max safe")
                 st.plotly_chart(fig, use_container_width=True)
 
             if "plant_height_cm" in df.columns:
@@ -99,8 +101,10 @@ try:
             if "EC" in df.columns:
                 fig3 = px.line(df, x=df.index, y="EC", title="EC over time",
                                markers=True, color_discrete_sequence=["#1565c0"])
-                fig3.add_hline(y=0.0, line_dash="dot", line_color="red", annotation_text="Min safe")
-                fig3.add_hline(y=5.0, line_dash="dot", line_color="red", annotation_text="Max safe")
+                fig3.add_hline(y=0.0, line_dash="dot", line_color="red",
+                               annotation_text="Min safe")
+                fig3.add_hline(y=5.0, line_dash="dot", line_color="red",
+                               annotation_text="Max safe")
                 st.plotly_chart(fig3, use_container_width=True)
 
             if "water_temp_C" in df.columns:
@@ -122,10 +126,9 @@ st.divider()
 st.subheader("🌿 All Plant Records")
 try:
     plants_resp = requests.get(f"{API_URL}/plants", timeout=5)
-    plants = plants_resp.json()
-    df_plants = pd.DataFrame(plants)
+    plants      = plants_resp.json()
+    df_plants   = pd.DataFrame(plants["records"])
     if not df_plants.empty:
-        # Show only the most useful columns
         cols_to_show = [c for c in
             ["date", "day_number", "plant_id", "pH", "EC",
              "water_temp_C", "plant_height_cm", "leaf_count",
@@ -142,8 +145,6 @@ st.divider()
 # ────────────────────────────────────────────────────────────────────────────
 # SECTION 5: IMAGE LOGGING SYSTEM
 # ────────────────────────────────────────────────────────────────────────────
-IMAGE_API_URL = "http://localhost:8002"  # image API runs on port 8002
-
 st.subheader("📷 Plant Photo Logger")
 
 tab_upload, tab_gallery = st.tabs(["Upload a Photo", "Photo Gallery"])
@@ -157,7 +158,7 @@ with tab_upload:
     if uploaded_file:
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            plant_id  = st.text_input("Plant ID",  value="P01")
+            plant_id  = st.text_input("Plant ID", value="P01")
         with col_b:
             condition = st.selectbox("Condition",
                 ["Healthy", "Mildly Stressed", "Deficient", "Critical"])
@@ -180,14 +181,27 @@ with tab_upload:
                         "notes":     notes,
                         "date":      str(photo_date)
                     },
-                    timeout=10
+                    timeout=30
                 )
                 if resp.status_code == 200:
-                    st.success(f"✅ Photo uploaded: {resp.json()['filename']}")
+                    result = resp.json()
+                    st.success(f"✅ Photo uploaded: {result['filename']}")
+                    # Show CV model prediction result
+                    cv = result.get("cv_prediction", {})
+                    if cv.get("predicted_class"):
+                        st.info(
+                            f"🤖 CV Model predicted: **{cv['predicted_class']}** "
+                            f"({cv.get('confidence_pct', '')} confidence)"
+                        )
+                        if cv.get("all_probabilities"):
+                            st.json(cv["all_probabilities"])
                 else:
                     st.error(f"Upload failed: {resp.text}")
             except Exception as e:
-                st.warning(f"Image API not running: {e}. Start it with: uvicorn api.image_api:app --port 8002")
+                st.warning(
+                    f"Image API not running: {e}. "
+                    f"Start it with: uvicorn api.image_api:app --port 8002"
+                )
 
 with tab_gallery:
     st.write("Browse all uploaded plant photos.")
@@ -200,45 +214,59 @@ with tab_gallery:
         params = {}
         if filter_condition != "All":
             params["condition"] = filter_condition
+
         gallery_resp = requests.get(
             f"{IMAGE_API_URL}/photos/list",
             params=params,
             timeout=5
         )
-        photos = gallery_resp.json()
+        data   = gallery_resp.json()
+        photos = data.get("photos", [])
+
         if not photos:
             st.info("No photos uploaded yet.")
         else:
             st.write(f"Showing {len(photos)} photo(s)")
-            # Display in a 3-column grid
             cols = st.columns(3)
             for i, photo in enumerate(photos):
                 with cols[i % 3]:
-                    img_url = f"{IMAGE_API_URL}/photos/{photo['filename']}"
+                    # Fetch image using the correct endpoint
+                    img_url = f"{IMAGE_API_URL}/photos/{photo['id']}/image"
                     try:
                         img_resp = requests.get(img_url, timeout=5)
                         if img_resp.status_code == 200:
                             st.image(img_resp.content, width=200)
-                    except:
-                        st.write("📷 (image)")
+                        else:
+                            st.write("📷 (image not found)")
+                    except Exception:
+                        st.write("📷 (could not load image)")
+
+                    # Manual label
                     st.caption(f"**{photo['condition']}** | {photo['date']}")
                     st.caption(f"Plant: {photo['plant_id']} | Angle: {photo['angle']}")
+
+                    # CV model prediction (Week 4 addition)
+                    if photo.get("predicted_condition"):
+                        conf = photo.get("prediction_confidence") or 0
+                        st.caption(
+                            f"🤖 CV Model: **{photo['predicted_condition']}** "
+                            f"({conf * 100:.1f}%)"
+                        )
+
                     if photo.get("notes"):
                         st.caption(f"Notes: {photo['notes']}")
+
     except Exception as e:
         st.warning(f"Could not reach Image API: {e}")
 
 st.divider()
 
 # ────────────────────────────────────────────────────────────────────────────
-# SECTION 6: RAG SMART FARMING ASSISTANT (CHAT)
+# SECTION 6: RAG SMART FARMING ASSISTANT
 # ────────────────────────────────────────────────────────────────────────────
-RAG_API_URL = "http://localhost:8000"  # your Week 2 RAG API
-
 st.subheader("🤖 Ask the Smart Farming Assistant")
 st.caption("Ask any question about hydroponics, plant health, nutrients, or your sensor data.")
 
-# Store conversation history in session state
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -253,18 +281,15 @@ for msg in st.session_state.chat_history:
                 for src in msg["sources"]:
                     st.write(f"• {src}")
 
-# Chat input box (appears at the bottom)
 user_question = st.chat_input("Ask a farming question...")
 
 if user_question:
-    # Show the user's message immediately
     st.chat_message("user").write(user_question)
     st.session_state.chat_history.append({
-        "role": "user",
+        "role":    "user",
         "content": user_question
     })
 
-    # Call your RAG API
     try:
         with st.spinner("Thinking..."):
             rag_resp = requests.post(
@@ -277,14 +302,12 @@ if user_question:
             answer  = result.get("answer", "No answer returned.")
             sources = result.get("sources", [])
 
-            # Show the answer
             st.chat_message("assistant").write(answer)
             if sources:
                 with st.expander("📚 Sources cited"):
                     for src in sources:
                         st.write(f"• {src}")
 
-            # Save to history
             st.session_state.chat_history.append({
                 "role":    "assistant",
                 "content": answer,
@@ -298,11 +321,10 @@ if user_question:
             f"Start it with: uvicorn api.rag_api:app --reload --port 8000"
         )
 
-# Button to clear chat history
 if st.button("🗑️ Clear chat history"):
     st.session_state.chat_history = []
     try:
         requests.post(f"{RAG_API_URL}/clear-memory", timeout=5)
-    except:
+    except Exception:
         pass
     st.rerun()

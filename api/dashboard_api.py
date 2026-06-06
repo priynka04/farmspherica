@@ -85,7 +85,19 @@ def get_plants():
     conn = get_db()
     df = pd.read_sql("SELECT * FROM sensor_readings ORDER BY rowid ASC", conn)
     conn.close()
-    return df.to_dict(orient="records")
+    records = []
+    for _, row in df.iterrows():
+        record = {}
+        for col, val in row.items():
+            try:
+                if pd.isna(val):
+                    record[col] = None
+                else:
+                    record[col] = val
+            except (TypeError, ValueError):
+                record[col] = val
+        records.append(record)
+    return {"total": len(records), "records": records}
 
 # ── Health check ─────────────────────────────────────────────────────────────
 @app.get("/health")

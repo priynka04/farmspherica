@@ -14,14 +14,25 @@ GROQ_API_KEY      = os.getenv("GROQ_API_KEY")
 COHERE_API_KEY    = os.getenv("COHERE_API_KEY")
 
 # ── Load vector store once when the file starts ──────────────────────────────
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
-vector_store = FAISS.load_local(
-    VECTOR_STORE_PATH,
-    embeddings,
-    allow_dangerous_deserialization=True
-)
+# ── Lazy loading — loads only when first question is asked ───────────────────
+embeddings   = None
+vector_store = None
+
+def get_vector_store():
+    global embeddings, vector_store
+    if vector_store is None:
+        print("[INFO] Loading embeddings model...")
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
+        print("[INFO] Loading FAISS index...")
+        vector_store = FAISS.load_local(
+            VECTOR_STORE_PATH,
+            embeddings,
+            allow_dangerous_deserialization=True
+        )
+        print("[INFO] Vector store loaded successfully")
+    return vector_store
 
 # ── Conversation memory ───────────────────────────────────────────────────────
 chat_history = ChatMessageHistory()
@@ -100,7 +111,7 @@ def ask_question(question: str) -> dict:
     search_query = rewrite_query(question)
 
     # ── Step 1b: Search FAISS for top 10 matching chunks ─────────────────────
-    retrieved_docs = vector_store.similarity_search(search_query, k=10)
+    retrieved_docs = get_vector_store().similarity_search(search_query, k=10)
 
     # ── Step 1c: Rerank top 10 → keep best 5 using Cohere ────────────────────
     try:
