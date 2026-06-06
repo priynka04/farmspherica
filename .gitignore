@@ -12,6 +12,12 @@ __pycache__/
 data/
 docs/knowledge_base/
 models/
+
+# Models
+*.h5
+*.keras
+models/
+
 .ipynb_checkpoints/
 notebooks/.ipynb_checkpoints/
 data/raw/
@@ -20,3 +26,7 @@ data/processed/
 *.json
 Thumbs.db
 .vscode/
+photos/
+
+# Training outputs
+docs/*.png
