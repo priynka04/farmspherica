@@ -70,7 +70,7 @@ except Exception as e:
 st.divider()
 
 # ────────────────────────────────────────────────────────────────────────────
-# SECTION 3: 7-DAY TREND CHARTS
+# SECTION 3: 7-DAY TREND CHARTS 
 # ────────────────────────────────────────────────────────────────────────────
 st.subheader("📈 7-Day Trends")
 try:
@@ -328,3 +328,52 @@ if st.button("🗑️ Clear chat history"):
     except Exception:
         pass
     st.rerun()
+    
+st.divider()
+
+# ── GROWTH FORECAST PANEL ──────────────────────────────────────────────────
+st.subheader("🌿 Growth Forecast")
+st.caption("Enter current sensor readings to predict plant height.")
+
+import joblib as jl
+import os
+
+if not os.path.exists("models/growth_model.pkl"):
+    st.info("Growth model not trained yet. Run: python api/growth_model.py")
+else:
+    growth_model    = jl.load("models/growth_model.pkl")
+    growth_features = jl.load("models/growth_model_features.pkl")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        g_day        = st.number_input("Day after transplant", 0,  70,  7)
+        g_ph         = st.number_input("pH",                   4.0, 9.0, 6.0, step=0.1)
+        g_ec         = st.number_input("EC (mS/cm)",           0.0, 5.0, 1.2, step=0.1)
+        g_tds        = st.number_input("TDS (ppm)",            0,   3000, 800)
+    with col2:
+        g_wtemp      = st.number_input("Water temp (°C)",      10.0, 35.0, 20.0, step=0.5)
+        g_atemp      = st.number_input("Ambient temp (°C)",    10.0, 40.0, 21.0, step=0.5)
+        g_do         = st.number_input("DO (mg/L)",            0.0,  15.0, 7.0,  step=0.1)
+        g_humidity   = st.number_input("Humidity (%)",         0,    100,  65)
+    with col3:
+        g_photo      = st.number_input("Photoperiod (hrs)",    0.0,  24.0, 14.0, step=0.5)
+        g_ppfd       = st.number_input("PPFD (umol)",          0,    500,  220)
+        g_leaves     = st.number_input("Leaf count",           1,    50,   8)
+        g_stage      = st.selectbox("Growth stage", ["establishment", "vegetative", "generative", "harvest"])
+        g_crop       = st.selectbox("Crop type", ["lettuce", "strawberry"])
+
+    if st.button("Predict Height"):
+        from sklearn.preprocessing import LabelEncoder
+        le = jl.load("models/growth_stage_encoder.pkl")
+        try:
+            stage_enc = le.transform([g_stage])[0]
+        except Exception:
+            stage_enc = 1
+        crop_enc = 1 if g_crop == "strawberry" else 0
+
+        row  = [[g_day, g_wtemp, g_atemp, g_ph, g_ec, g_tds,
+                 g_do, g_humidity, g_photo, g_ppfd, g_leaves,
+                 stage_enc, crop_enc]]
+        pred = growth_model.predict(row)[0]
+        st.success(f"Predicted plant height: **{pred:.1f} cm**")
+        st.caption("Based on Random Forest / XGBoost trained on 1785 rows of lettuce + strawberry data")
