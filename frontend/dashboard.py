@@ -377,3 +377,60 @@ else:
         pred = growth_model.predict(row)[0]
         st.success(f"Predicted plant height: **{pred:.1f} cm**")
         st.caption("Based on Random Forest / XGBoost trained on 1785 rows of lettuce + strawberry data")
+        
+st.divider()
+
+# ── LSTM 7-DAY TRAJECTORY ─────────────────────────────────
+st.subheader("📈 7-Day Growth Trajectory (LSTM)")
+st.caption("Enter the last 7 days of sensor readings to forecast the next 7 days.")
+
+if not os.path.exists("models/lstm_growth.keras"):
+    st.info("LSTM model not trained yet. Run: python api/lstm_growth.py")
+else:
+    import tensorflow as tf
+    import numpy as np
+
+    lstm_model   = tf.keras.models.load_model("models/lstm_growth.keras")
+    feat_scaler  = jl.load("models/lstm_feature_scaler.pkl")
+    tgt_scaler   = jl.load("models/lstm_target_scaler.pkl")
+    lstm_feats   = jl.load("models/lstm_features.pkl")
+
+    st.markdown("Using current panel inputs as today's reading — LSTM fills the 7-day window automatically.")
+
+    if st.button("Forecast 7-Day Trajectory"):
+        # Build a 7-day window using current inputs
+        # (day_after_transplant counts back 6 days from g_day)
+        rows = []
+        for offset in range(6, -1, -1):
+            rows.append([
+                max(1, g_day - offset),
+                g_wtemp, g_atemp, g_ph, g_ec,
+                g_do, g_humidity, g_ppfd,
+                g_leaves,
+                1 if g_crop == "strawberry" else 0
+            ])
+
+        seq_scaled = feat_scaler.transform(np.array(rows))
+        X_input    = seq_scaled.reshape(1, 7, len(lstm_feats))
+        pred_scaled = lstm_model.predict(X_input)
+        pred_cm     = tgt_scaler.inverse_transform(pred_scaled)[0]
+
+        future_days = [f"Day {g_day + i + 1}" for i in range(7)]
+
+        import plotly.graph_objects as go
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=future_days, y=pred_cm,
+            mode="lines+markers",
+            line=dict(color="#2e7d32", width=2),
+            marker=dict(size=8),
+            name="Predicted height"
+        ))
+        fig.update_layout(
+            title="7-Day Growth Forecast",
+            xaxis_title="Day",
+            yaxis_title="Plant Height (cm)",
+            height=350
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(f"Forecast: {[round(p,1) for p in pred_cm]} cm")

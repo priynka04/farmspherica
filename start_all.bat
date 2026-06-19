@@ -7,4 +7,4 @@ timeout /t 3
 start "Image API" cmd /k "cd /d C:\Users\Lenovo\farmspherica && venv\Scripts\activate && uvicorn api.image_api:app --reload --port 8002"
 timeout /t 3
 start "Dashboard" cmd /k "cd /d C:\Users\Lenovo\farmspherica && venv\Scripts\activate && streamlit run frontend/dashboard.py"
-echo All services started! Open: http://localhost:8501
+echo All services started! Open: http://localhost:8501 

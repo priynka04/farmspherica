@@ -39,3 +39,4 @@ if __name__ == "__main__":
     test_combined_alert_level()
     test_good_reading_is_ok()
     print("\nAll anomaly detection tests passed!")
+    
