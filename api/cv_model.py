@@ -13,7 +13,7 @@ from PIL import Image
 import numpy as np
 
 # Path to the trained model
-MODEL_PATH = "models/disease_model_v2.pt"
+MODEL_PATH = "models/disease_model_yolo26n_v2.pt"
 
 # Disease class names (must match training labels)
 DISEASE_CLASSES = {
