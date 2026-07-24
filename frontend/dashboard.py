@@ -5,15 +5,11 @@ import plotly.express as px
 from datetime import datetime
 
 # ── Page config (must be first Streamlit command) ──────────────────────────
-st.set_page_config(
-    page_title="Farmspherica Dashboard",
-    page_icon="🌱",
-    layout="wide"
-)
+st.set_page_config(page_title="Farmspherica Dashboard", page_icon="🌱", layout="wide")
 
-API_URL       = "http://localhost:8001"   # dashboard API
-IMAGE_API_URL = "http://localhost:8002"   # image API
-RAG_API_URL   = "http://localhost:8000"   # RAG API
+API_URL = "http://localhost:8001"  # dashboard API
+IMAGE_API_URL = "http://localhost:8002"  # image API
+RAG_API_URL = "http://localhost:8000"  # RAG API
 
 st.title("🌱 Farmspherica Nano PAW — Live Dashboard")
 st.caption(f"Last refreshed: {datetime.now().strftime('%d %b %Y %H:%M:%S')}")
@@ -37,6 +33,37 @@ except Exception as e:
     st.warning(f"Could not reach API: {e}. Make sure your dashboard_api.py is running.")
 
 st.divider()
+# ── Early Warning Risk Score ──────────────────────────────────────────
+st.subheader("🔮 Early Warning Risk Score")
+try:
+    import sys, os
+
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+    from api.early_warning import predict_stress_risk
+    import requests
+
+    latest_resp = requests.get("http://localhost:8001/data/latest", timeout=3)
+    if latest_resp.ok:
+        latest = latest_resp.json()
+        ew_reading = {
+            "pH": latest.get("pH", 6.0),
+            "EC": latest.get("EC", 1.5),
+            "water_temp_C": latest.get("water_temp_C", 20.0),
+        }
+        ew_result = predict_stress_risk(ew_reading)
+        level = ew_result["risk_level"]
+        prob = ew_result["risk_probability"]
+
+        if level == "LOW":
+            st.success(f"🟢 Risk Level: {level} ({prob:.1%})")
+        elif level == "MEDIUM":
+            st.warning(f"🟡 Risk Level: {level} ({prob:.1%})")
+        else:
+            st.error(f"🔴 Risk Level: {level} ({prob:.1%})")
+
+        st.caption(ew_result["message"])
+except Exception:
+    st.info("Early warning: start dashboard API to see risk score")
 
 # ────────────────────────────────────────────────────────────────────────────
 # SECTION 2: LATEST SENSOR READINGS (Cards)
@@ -58,11 +85,11 @@ try:
             else:
                 st.metric(label=label, value="No data")
 
-    show_card(col1, "pH",        "pH",              "",       4.0, 9.0)
-    show_card(col2, "EC",        "EC",              "mS/cm",  0.0, 5.0)
-    show_card(col3, "Water Temp","water_temp_C",    "°C",     10,  35)
-    show_card(col4, "Height",    "plant_height_cm", "cm",     0,   300)
-    show_card(col5, "Leaf Count","leaf_count",      "leaves", 0,   500)
+    show_card(col1, "pH", "pH", "", 4.0, 9.0)
+    show_card(col2, "EC", "EC", "mS/cm", 0.0, 5.0)
+    show_card(col3, "Water Temp", "water_temp_C", "°C", 10, 35)
+    show_card(col4, "Height", "plant_height_cm", "cm", 0, 300)
+    show_card(col5, "Leaf Count", "leaf_count", "leaves", 0, 500)
 
 except Exception as e:
     st.warning(f"Could not load latest readings: {e}")
@@ -70,7 +97,7 @@ except Exception as e:
 st.divider()
 
 # ────────────────────────────────────────────────────────────────────────────
-# SECTION 3: 7-DAY TREND CHARTS 
+# SECTION 3: 7-DAY TREND CHARTS
 # ────────────────────────────────────────────────────────────────────────────
 st.subheader("📈 7-Day Trends")
 try:
@@ -83,34 +110,59 @@ try:
 
         with col_left:
             if "pH" in df.columns:
-                fig = px.line(df, x=df.index, y="pH", title="pH over time",
-                              markers=True, color_discrete_sequence=["#1a6b3c"])
-                fig.add_hline(y=4.0, line_dash="dot", line_color="red",
-                              annotation_text="Min safe")
-                fig.add_hline(y=9.0, line_dash="dot", line_color="red",
-                              annotation_text="Max safe")
+                fig = px.line(
+                    df,
+                    x=df.index,
+                    y="pH",
+                    title="pH over time",
+                    markers=True,
+                    color_discrete_sequence=["#1a6b3c"],
+                )
+                fig.add_hline(
+                    y=4.0, line_dash="dot", line_color="red", annotation_text="Min safe"
+                )
+                fig.add_hline(
+                    y=9.0, line_dash="dot", line_color="red", annotation_text="Max safe"
+                )
                 st.plotly_chart(fig, use_container_width=True)
 
             if "plant_height_cm" in df.columns:
-                fig2 = px.bar(df, x=df.index, y="plant_height_cm",
-                              title="Plant height (cm)",
-                              color_discrete_sequence=["#2e7d32"])
+                fig2 = px.bar(
+                    df,
+                    x=df.index,
+                    y="plant_height_cm",
+                    title="Plant height (cm)",
+                    color_discrete_sequence=["#2e7d32"],
+                )
                 st.plotly_chart(fig2, use_container_width=True)
 
         with col_right:
             if "EC" in df.columns:
-                fig3 = px.line(df, x=df.index, y="EC", title="EC over time",
-                               markers=True, color_discrete_sequence=["#1565c0"])
-                fig3.add_hline(y=0.0, line_dash="dot", line_color="red",
-                               annotation_text="Min safe")
-                fig3.add_hline(y=5.0, line_dash="dot", line_color="red",
-                               annotation_text="Max safe")
+                fig3 = px.line(
+                    df,
+                    x=df.index,
+                    y="EC",
+                    title="EC over time",
+                    markers=True,
+                    color_discrete_sequence=["#1565c0"],
+                )
+                fig3.add_hline(
+                    y=0.0, line_dash="dot", line_color="red", annotation_text="Min safe"
+                )
+                fig3.add_hline(
+                    y=5.0, line_dash="dot", line_color="red", annotation_text="Max safe"
+                )
                 st.plotly_chart(fig3, use_container_width=True)
 
             if "water_temp_C" in df.columns:
-                fig4 = px.line(df, x=df.index, y="water_temp_C",
-                               title="Water temperature (°C)",
-                               markers=True, color_discrete_sequence=["#e65100"])
+                fig4 = px.line(
+                    df,
+                    x=df.index,
+                    y="water_temp_C",
+                    title="Water temperature (°C)",
+                    markers=True,
+                    color_discrete_sequence=["#e65100"],
+                )
                 st.plotly_chart(fig4, use_container_width=True)
     else:
         st.info("No trend data yet.")
@@ -126,14 +178,25 @@ st.divider()
 st.subheader("🌿 All Plant Records")
 try:
     plants_resp = requests.get(f"{API_URL}/plants", timeout=5)
-    plants      = plants_resp.json()
-    df_plants   = pd.DataFrame(plants["records"])
+    plants = plants_resp.json()
+    df_plants = pd.DataFrame(plants["records"])
     if not df_plants.empty:
-        cols_to_show = [c for c in
-            ["date", "day_number", "plant_id", "pH", "EC",
-             "water_temp_C", "plant_height_cm", "leaf_count",
-             "condition", "remarks"]
-            if c in df_plants.columns]
+        cols_to_show = [
+            c
+            for c in [
+                "date",
+                "day_number",
+                "plant_id",
+                "pH",
+                "EC",
+                "water_temp_C",
+                "plant_height_cm",
+                "leaf_count",
+                "condition",
+                "remarks",
+            ]
+            if c in df_plants.columns
+        ]
         st.dataframe(df_plants[cols_to_show], use_container_width=True)
     else:
         st.info("No plant records found.")
@@ -152,36 +215,40 @@ tab_upload, tab_gallery = st.tabs(["Upload a Photo", "Photo Gallery"])
 with tab_upload:
     st.write("Upload a new plant photo here.")
     uploaded_file = st.file_uploader(
-        "Choose a photo (jpg, png)",
-        type=["jpg", "jpeg", "png"]
+        "Choose a photo (jpg, png)", type=["jpg", "jpeg", "png"]
     )
     if uploaded_file:
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            plant_id  = st.text_input("Plant ID", value="P01")
+            plant_id = st.text_input("Plant ID", value="P01")
         with col_b:
-            condition = st.selectbox("Condition",
-                ["Healthy", "Mildly Stressed", "Deficient", "Critical"])
+            condition = st.selectbox(
+                "Condition", ["Healthy", "Mildly Stressed", "Deficient", "Critical"]
+            )
         with col_c:
             angle = st.selectbox("Angle", ["Front", "Side", "Root"])
         photo_date = st.date_input("Date of photo")
-        notes      = st.text_input("Notes (optional)", value="")
+        notes = st.text_input("Notes (optional)", value="")
 
         if st.button("📤 Upload Photo"):
             try:
                 resp = requests.post(
                     f"{IMAGE_API_URL}/photos/upload",
-                    files={"file": (uploaded_file.name,
-                                    uploaded_file.getvalue(),
-                                    "image/jpeg")},
-                    data={
-                        "plant_id":  plant_id,
-                        "condition": condition,
-                        "angle":     angle,
-                        "notes":     notes,
-                        "date":      str(photo_date)
+                    files={
+                        "file": (
+                            uploaded_file.name,
+                            uploaded_file.getvalue(),
+                            "image/jpeg",
+                        )
                     },
-                    timeout=30
+                    data={
+                        "plant_id": plant_id,
+                        "condition": condition,
+                        "angle": angle,
+                        "notes": notes,
+                        "date": str(photo_date),
+                    },
+                    timeout=30,
                 )
                 if resp.status_code == 200:
                     result = resp.json()
@@ -208,7 +275,7 @@ with tab_gallery:
     filter_condition = st.selectbox(
         "Filter by condition",
         ["All", "Healthy", "Mildly Stressed", "Deficient", "Critical"],
-        key="gallery_filter"
+        key="gallery_filter",
     )
     try:
         params = {}
@@ -216,11 +283,9 @@ with tab_gallery:
             params["condition"] = filter_condition
 
         gallery_resp = requests.get(
-            f"{IMAGE_API_URL}/photos/list",
-            params=params,
-            timeout=5
+            f"{IMAGE_API_URL}/photos/list", params=params, timeout=5
         )
-        data   = gallery_resp.json()
+        data = gallery_resp.json()
         photos = data.get("photos", [])
 
         if not photos:
@@ -265,7 +330,9 @@ st.divider()
 # SECTION 6: RAG SMART FARMING ASSISTANT
 # ────────────────────────────────────────────────────────────────────────────
 st.subheader("🤖 Ask the Smart Farming Assistant")
-st.caption("Ask any question about hydroponics, plant health, nutrients, or your sensor data.")
+st.caption(
+    "Ask any question about hydroponics, plant health, nutrients, or your sensor data."
+)
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -285,21 +352,16 @@ user_question = st.chat_input("Ask a farming question...")
 
 if user_question:
     st.chat_message("user").write(user_question)
-    st.session_state.chat_history.append({
-        "role":    "user",
-        "content": user_question
-    })
+    st.session_state.chat_history.append({"role": "user", "content": user_question})
 
     try:
         with st.spinner("Thinking..."):
             rag_resp = requests.post(
-                f"{RAG_API_URL}/ask",
-                json={"question": user_question},
-                timeout=30
+                f"{RAG_API_URL}/ask", json={"question": user_question}, timeout=30
             )
         if rag_resp.status_code == 200:
-            result  = rag_resp.json()
-            answer  = result.get("answer", "No answer returned.")
+            result = rag_resp.json()
+            answer = result.get("answer", "No answer returned.")
             sources = result.get("sources", [])
 
             st.chat_message("assistant").write(answer)
@@ -308,11 +370,9 @@ if user_question:
                     for src in sources:
                         st.write(f"• {src}")
 
-            st.session_state.chat_history.append({
-                "role":    "assistant",
-                "content": answer,
-                "sources": sources
-            })
+            st.session_state.chat_history.append(
+                {"role": "assistant", "content": answer, "sources": sources}
+            )
         else:
             st.error(f"RAG API error: {rag_resp.text}")
     except Exception as e:
@@ -328,7 +388,7 @@ if st.button("🗑️ Clear chat history"):
     except Exception:
         pass
     st.rerun()
-    
+
 st.divider()
 
 # ── GROWTH FORECAST PANEL ──────────────────────────────────────────────────
@@ -341,29 +401,32 @@ import os
 if not os.path.exists("models/growth_model.pkl"):
     st.info("Growth model not trained yet. Run: python api/growth_model.py")
 else:
-    growth_model    = jl.load("models/growth_model.pkl")
+    growth_model = jl.load("models/growth_model.pkl")
     growth_features = jl.load("models/growth_model_features.pkl")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        g_day        = st.number_input("Day after transplant", 0,  70,  7)
-        g_ph         = st.number_input("pH",                   4.0, 9.0, 6.0, step=0.1)
-        g_ec         = st.number_input("EC (mS/cm)",           0.0, 5.0, 1.2, step=0.1)
-        g_tds        = st.number_input("TDS (ppm)",            0,   3000, 800)
+        g_day = st.number_input("Day after transplant", 0, 70, 7)
+        g_ph = st.number_input("pH", 4.0, 9.0, 6.0, step=0.1)
+        g_ec = st.number_input("EC (mS/cm)", 0.0, 5.0, 1.2, step=0.1)
+        g_tds = st.number_input("TDS (ppm)", 0, 3000, 800)
     with col2:
-        g_wtemp      = st.number_input("Water temp (°C)",      10.0, 35.0, 20.0, step=0.5)
-        g_atemp      = st.number_input("Ambient temp (°C)",    10.0, 40.0, 21.0, step=0.5)
-        g_do         = st.number_input("DO (mg/L)",            0.0,  15.0, 7.0,  step=0.1)
-        g_humidity   = st.number_input("Humidity (%)",         0,    100,  65)
+        g_wtemp = st.number_input("Water temp (°C)", 10.0, 35.0, 20.0, step=0.5)
+        g_atemp = st.number_input("Ambient temp (°C)", 10.0, 40.0, 21.0, step=0.5)
+        g_do = st.number_input("DO (mg/L)", 0.0, 15.0, 7.0, step=0.1)
+        g_humidity = st.number_input("Humidity (%)", 0, 100, 65)
     with col3:
-        g_photo      = st.number_input("Photoperiod (hrs)",    0.0,  24.0, 14.0, step=0.5)
-        g_ppfd       = st.number_input("PPFD (umol)",          0,    500,  220)
-        g_leaves     = st.number_input("Leaf count",           1,    50,   8)
-        g_stage      = st.selectbox("Growth stage", ["establishment", "vegetative", "generative", "harvest"])
-        g_crop       = st.selectbox("Crop type", ["lettuce", "strawberry"])
+        g_photo = st.number_input("Photoperiod (hrs)", 0.0, 24.0, 14.0, step=0.5)
+        g_ppfd = st.number_input("PPFD (umol)", 0, 500, 220)
+        g_leaves = st.number_input("Leaf count", 1, 50, 8)
+        g_stage = st.selectbox(
+            "Growth stage", ["establishment", "vegetative", "generative", "harvest"]
+        )
+        g_crop = st.selectbox("Crop type", ["lettuce", "strawberry"])
 
     if st.button("Predict Height"):
         from sklearn.preprocessing import LabelEncoder
+
         le = jl.load("models/growth_stage_encoder.pkl")
         try:
             stage_enc = le.transform([g_stage])[0]
@@ -371,14 +434,86 @@ else:
             stage_enc = 1
         crop_enc = 1 if g_crop == "strawberry" else 0
 
-        row  = [[g_day, g_wtemp, g_atemp, g_ph, g_ec, g_tds,
-                 g_do, g_humidity, g_photo, g_ppfd, g_leaves,
-                 stage_enc, crop_enc]]
+        row = [
+            [
+                g_day,
+                g_wtemp,
+                g_atemp,
+                g_ph,
+                g_ec,
+                g_tds,
+                g_do,
+                g_humidity,
+                g_photo,
+                g_ppfd,
+                g_leaves,
+                stage_enc,
+                crop_enc,
+            ]
+        ]
         pred = growth_model.predict(row)[0]
         st.success(f"Predicted plant height: **{pred:.1f} cm**")
-        st.caption("Based on Random Forest / XGBoost trained on 1785 rows of lettuce + strawberry data")
-        
+        st.caption(
+            "Based on Random Forest / XGBoost trained on 1785 rows of lettuce + strawberry data"
+        )
+
+# ── SHAP Explainability Panel ─────────────────────────────────────────
 st.divider()
+st.subheader("🔍 Growth Explainability (SHAP)")
+st.caption("Why is the model predicting this height? Which sensor is the bottleneck?")
+
+if st.button("Explain this prediction"):
+    try:
+        import sys, os
+
+        sys.path.insert(
+            0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        )
+        from api.shap_explainer import explain_prediction
+
+        shap_reading = {
+            "day_after_transplant": g_day,
+            "water_temp_C": g_wtemp,
+            "ambient_temp_C": g_atemp,
+            "pH": g_ph,
+            "EC_mScm": g_ec,
+            "DO_mgL": g_do,
+            "humidity_pct": g_humidity,
+            "PPFD_umol": g_ppfd,
+            "leaf_count": g_leaves,
+            "growth_stage_encoded": 1 if g_crop == "strawberry" else 0,
+            "crop_type_encoded": 1 if g_crop == "strawberry" else 0,
+        }
+        result = explain_prediction(shap_reading)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Predicted Height", f"{result['predicted_height_cm']} cm")
+            bottleneck = result["bottleneck"]
+            if "optimal" in bottleneck:
+                st.success(f"✅ {bottleneck}")
+            else:
+                st.warning(f"⚠️ Bottleneck: **{bottleneck}**")
+
+        with col2:
+            st.markdown("**Top drivers pushing height UP:**")
+            for feat, val in result["top_positive"]:
+                st.markdown(f"- `{feat}` → +{val} cm")
+
+        st.markdown("**Full explanation:**")
+        st.info(result["explanation"])
+
+        st.markdown("**All SHAP values (sorted by impact):**")
+        import pandas as pd
+
+        shap_df = pd.DataFrame(
+            result["shap_values"].items(), columns=["Feature", "SHAP value (cm)"]
+        ).sort_values("SHAP value (cm)", ascending=False)
+        st.dataframe(shap_df, use_container_width=True, hide_index=True)
+
+    except Exception as e:
+        st.error(f"SHAP explanation failed: {e}")
+
 
 # ── LSTM 7-DAY TRAJECTORY ─────────────────────────────────
 st.subheader("📈 7-Day Growth Trajectory (LSTM)")
@@ -390,47 +525,62 @@ else:
     import tensorflow as tf
     import numpy as np
 
-    lstm_model   = tf.keras.models.load_model("models/lstm_growth.keras")
-    feat_scaler  = jl.load("models/lstm_feature_scaler.pkl")
-    tgt_scaler   = jl.load("models/lstm_target_scaler.pkl")
-    lstm_feats   = jl.load("models/lstm_features.pkl")
+    lstm_model = tf.keras.models.load_model("models/lstm_growth.keras")
+    feat_scaler = jl.load("models/lstm_feature_scaler.pkl")
+    tgt_scaler = jl.load("models/lstm_target_scaler.pkl")
+    lstm_feats = jl.load("models/lstm_features.pkl")
 
-    st.markdown("Using current panel inputs as today's reading — LSTM fills the 7-day window automatically.")
+    st.markdown(
+        "Using current panel inputs as today's reading — LSTM fills the 7-day window automatically."
+    )
 
     if st.button("Forecast 7-Day Trajectory"):
         # Build a 7-day window using current inputs
         # (day_after_transplant counts back 6 days from g_day)
         rows = []
         for offset in range(6, -1, -1):
-            rows.append([
-                max(1, g_day - offset),
-                g_wtemp, g_atemp, g_ph, g_ec,
-                g_do, g_humidity, g_ppfd,
-                g_leaves,
-                1 if g_crop == "strawberry" else 0
-            ])
-
+            rows.append(
+                [
+                    max(1, g_day - offset),
+                    g_wtemp,
+                    g_atemp,
+                    g_ph,
+                    g_ec,
+                    g_do,
+                    g_humidity,
+                    g_ppfd,
+                    g_leaves,
+                    1 if g_crop == "strawberry" else 0,
+                    0.0,
+                    0.0,
+                ]
+            )
+        seq_df = pd.DataFrame(rows, columns=lstm_feats)
         seq_scaled = feat_scaler.transform(np.array(rows))
-        X_input    = seq_scaled.reshape(1, 7, len(lstm_feats))
+        X_input = seq_scaled.reshape(1, 7, len(lstm_feats))
         pred_scaled = lstm_model.predict(X_input)
-        pred_cm     = tgt_scaler.inverse_transform(pred_scaled)[0]
+        pred_cm = tgt_scaler.inverse_transform(pred_scaled)[0]
 
         future_days = [f"Day {g_day + i + 1}" for i in range(7)]
 
         import plotly.graph_objects as go
+
         fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=future_days, y=pred_cm,
-            mode="lines+markers",
-            line=dict(color="#2e7d32", width=2),
-            marker=dict(size=8),
-            name="Predicted height"
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=future_days,
+                y=pred_cm,
+                mode="lines+markers",
+                line=dict(color="#2e7d32", width=2),
+                marker=dict(size=8),
+                name="Predicted height",
+            )
+        )
         fig.update_layout(
             title="7-Day Growth Forecast",
             xaxis_title="Day",
             yaxis_title="Plant Height (cm)",
-            height=350
+            height=350,
         )
         st.plotly_chart(fig, use_container_width=True)
-        st.caption(f"Forecast: {[round(p,1) for p in pred_cm]} cm")
+        st.caption(f"Forecast: {[round(float(p),1) for p in pred_cm]} cm")
